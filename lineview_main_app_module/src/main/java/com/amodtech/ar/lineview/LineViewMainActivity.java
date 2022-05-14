@@ -16,36 +16,54 @@
 package com.amodtech.ar.lineview;
 
 import android.app.Activity;
-import android.support.design.widget.FloatingActionButton;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.provider.MediaStore;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
-import android.support.v7.app.AppCompatActivity;
+
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.PixelCopy;
 import android.view.View;
+import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
 import com.google.ar.core.Anchor;
+import com.google.ar.core.CameraConfig;
+import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
 import com.google.ar.core.HitResult;
 import com.google.ar.core.Plane;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
+import com.google.ar.core.TrackingState;
+import com.google.ar.core.exceptions.NotTrackingException;
 import com.google.ar.sceneform.AnchorNode;
 import com.google.ar.sceneform.HitTestResult;
 import com.google.ar.sceneform.Node;
-import com.google.ar.sceneform.math.Quaternion;
-import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.Color;
-import com.google.ar.sceneform.rendering.MaterialFactory;
+import com.google.ar.sceneform.rendering.Light;
 import com.google.ar.sceneform.rendering.ModelRenderable;
 //import com.google.ar.sceneform.samples.hellosceneform.R;
-import com.google.ar.sceneform.rendering.ShapeFactory;
 import com.google.ar.sceneform.ux.ArFragment;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -53,218 +71,175 @@ import java.util.List;
  * LineViewMainActivity - built on HelloSceneForm sample.
  */
 public class LineViewMainActivity extends AppCompatActivity {
-  private static final String TAG = LineViewMainActivity.class.getSimpleName();
-  private static final double MIN_OPENGL_VERSION = 3.0;
-  private  static final int MAX_ANCHORS = 2;
+    private static final String TAG = LineViewMainActivity.class.getSimpleName();
+    private static final double MIN_OPENGL_VERSION = 3.0;
+    private static final int MAX_ANCHORS = 1;
 
-  private ArFragment arFragment;
-  private ModelRenderable andyRenderable;
-  private ModelRenderable foxRenderable;
-  private AnchorNode anchorNode;
-  private List<AnchorNode> anchorNodeList = new ArrayList<>();
-  private Integer numberOfAnchors = 0;
-  private AnchorNode currentSelectedAnchorNode = null;
-  private Node nodeForLine;
+    private ArFragment arFragment;
+    private ModelRenderable snakeRenderable;
+
+    private AnchorNode anchorNode;
+    private List<AnchorNode> anchorNodeList = new ArrayList<>();
+    private Integer numberOfAnchors = 0;
+    private AnchorNode currentSelectedAnchorNode = null;
+    private Node nodeForLine;
 
 
     @Override
-  @SuppressWarnings({"AndroidApiChecker", "FutureReturnValueIgnored"})
-  // CompletableFuture requires api level 24
-  // FutureReturnValueIgnored is not valid
-  protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
+    @SuppressWarnings({"AndroidApiChecker", "FutureReturnValueIgnored"})
+    // CompletableFuture requires api level 24
+    // FutureReturnValueIgnored is not valid
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
-    if (!checkIsSupportedDeviceOrFinish(this)) {
-      return;
-    }
+        if (!checkIsSupportedDeviceOrFinish(this)) {
+            return;
+        }
 
-    setContentView(R.layout.activity_ux);
-    arFragment = (ArFragment) getSupportFragmentManager().findFragmentById(R.id.ux_fragment);
+        setContentView(R.layout.activity_ux);
 
-    // When you build a Renderable, Sceneform loads its resources in the background while returning
-    // a CompletableFuture. Call thenAccept(), handle(), or check isDone() before calling get().
-    ModelRenderable.builder()
-        .setSource(this, R.raw.untitled)
-        .build()
-        .thenAccept(renderable -> andyRenderable = renderable)
-        .exceptionally(
-            throwable -> {
-              Toast toast =
-                  Toast.makeText(this, "Unable to load andy renderable", Toast.LENGTH_LONG);
-              toast.setGravity(Gravity.CENTER, 0, 0);
-              toast.show();
-              return null;
-            });
 
-      ModelRenderable.builder()
-              .setSource(this, R.raw.arcticfox_posed)
-              .build()
-              .thenAccept(renderable -> foxRenderable = renderable)
-              .exceptionally(
-                      throwable -> {
-                          Toast toast =
-                                  Toast.makeText(this, "Unable to load fox renderable", Toast.LENGTH_LONG);
-                          toast.setGravity(Gravity.CENTER, 0, 0);
-                          toast.show();
-                          return null;
-                      });
+        Button button = findViewById(R.id.capture);
 
-    arFragment.setOnTapArPlaneListener(
-        (HitResult hitResult, Plane plane, MotionEvent motionEvent) -> {
-          // Do nothng on plane taps for now
 
+        FrameLayout frameLayout = findViewById(R.id.frameLayout);
+        frameLayout.setDrawingCacheEnabled(true);
+
+
+        arFragment = (ArFragment) getSupportFragmentManager().findFragmentById(R.id.ux_fragment);
+
+
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                dispatchTakePictureIntent();
+            }
         });
 
-      arFragment.getArSceneView().getScene().addOnPeekTouchListener(this::handleOnTouch);
+        //arFragment
+
+
+        Light spotLightYellow = Light.builder(Light.Type.FOCUSED_SPOTLIGHT)
+                .setColor(new Color(android.graphics.Color.YELLOW))
+                .setIntensity(50)
+                .setShadowCastingEnabled(true)
+                .build();
+
+
+        //arFragment.getArSceneView().getScene().getSunlight().setLight(spotLightYellow);
+
+        // When you build a Renderable, Sceneform loads its resources in the background while returning
+        // a CompletableFuture. Call thenAccept(), handle(), or check isDone() before calling get().
+
+
+        ModelRenderable.builder()
+                .setSource(this, R.raw.snake)
+                .build()
+                .thenAccept(renderable -> snakeRenderable = renderable)
+
+                .exceptionally(
+                        throwable -> {
+                            Toast toast =
+                                    Toast.makeText(this, "Unable to load andy renderable", Toast.LENGTH_LONG);
+                            toast.setGravity(Gravity.CENTER, 0, 0);
+
+                            toast.show();
+                            return null;
+                        });
+
+
+
+        arFragment.getArSceneView().getPlaneRenderer().setVisible(false);
+        if (arFragment.getArSceneView().getPlaneRenderer().isEnabled()) {
+            Toast.makeText(this, "Scene is visible", Toast.LENGTH_LONG).show();
+        }
+
+        arFragment.setOnTapArPlaneListener(
+                (HitResult hitResult, Plane plane, MotionEvent motionEvent) -> {
+                    // Do nothng on plane taps for now
+
+                });
+
+
+        arFragment.getArSceneView().getScene().addOnPeekTouchListener(this::handleOnTouch);
+
 
         //Add a listener for the back button
-        FloatingActionButton backButtom = findViewById(R.id.back_buttom);
-        backButtom.setOnClickListener(new View.OnClickListener() {
+        findViewById(R.id.share_button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                //Move the anchor back
-                Log.d(TAG,"Moving anchor back");
+                //Make a screenshot of the drawing
+            }
+        });
+
+
+        findViewById(R.id.rotate).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                //TODO ROTATE VIEW
+                Log.d(TAG, "rotate anchor");
                 if (currentSelectedAnchorNode != null) {
                     //Get the current Pose and transform it then set a new anchor at the new pose
                     Session session = arFragment.getArSceneView().getSession();
                     Anchor currentAnchor = currentSelectedAnchorNode.getAnchor();
                     Pose oldPose = currentAnchor.getPose();
-                    Pose newPose = oldPose.compose(Pose.makeTranslation(0,0,-0.05f));
+                    Pose newPose = oldPose.compose(Pose.makeTranslation(0, 0, -0.05f));
                     currentSelectedAnchorNode = moveRenderable(currentSelectedAnchorNode, newPose);
                 }
             }
         });
 
-        //Add a listener for the forward button
-        FloatingActionButton forwardButtom = findViewById(R.id.forward_buttom);
-        forwardButtom.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Move the anchor forward
-                Log.d(TAG,"Moving anchor forward");
-                if (currentSelectedAnchorNode != null) {
-                    //Get the current Pose and transform it then set a new anchor at the new pose
-                    Session session = arFragment.getArSceneView().getSession();
-                    Anchor currentAnchor = currentSelectedAnchorNode.getAnchor();
-                    Pose oldPose = currentAnchor.getPose();
-                    Pose newPose = oldPose.compose(Pose.makeTranslation(0,0,0.05f));
-                    currentSelectedAnchorNode = moveRenderable(currentSelectedAnchorNode, newPose);
+    }
+
+    private void dispatchTakePictureIntent() {
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
+        File dir= Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+
+        File output=null;
+
+        output=new File(dir, "test.jpeg");
+        takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(output));
+
+        try {
+            startActivityForResult(takePictureIntent, 1);
+        } catch (ActivityNotFoundException e) {
+            // display error state to the user
+        }
+    }
+
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == 1 && resultCode == RESULT_OK) {
+            //Bundle extras = data.getExtras();
+            //Bitmap imageBitmap = (Bitmap) extras.get("data");
+            Toast.makeText(getApplicationContext(), "Photo ok", Toast.LENGTH_LONG).show();
+
+            File dir= Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+
+            File fileToSend = new File(dir+"/test.jpeg");
+
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    SendImageToServer sendImageToServer = new SendImageToServer("http://192.168.1.72:5000/file-upload");
+                    sendImageToServer.sendImageToServer(fileToSend.getAbsolutePath());
                 }
-            }
-        });
+            }).start();
+        }
 
-        //Add a listener for the left button
-        FloatingActionButton leftButtom = findViewById(R.id.left_button);
-        leftButtom.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Move the anchor left
-                Log.d(TAG,"Moving anchor left");
-                if (currentSelectedAnchorNode != null) {
-                    //Get the current Pose and transform it then set a new anchor at the new pose
-                    Session session = arFragment.getArSceneView().getSession();
-                    Anchor currentAnchor = currentSelectedAnchorNode.getAnchor();
-                    Pose oldPose = currentAnchor.getPose();
-                    Pose newPose = oldPose.compose(Pose.makeTranslation(-0.05f,0,0));
-                    currentSelectedAnchorNode = moveRenderable(currentSelectedAnchorNode, newPose);
-                }
-            }
-        });
-
-        //Add a listener for the right button
-        FloatingActionButton rightButtom = findViewById(R.id.right_button);
-        rightButtom.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Move the anchor right
-                Log.d(TAG,"Moving anchor Right");
-                if (currentSelectedAnchorNode != null) {
-                    //Get the current Pose and transform it then set a new anchor at the new pose
-                    Session session = arFragment.getArSceneView().getSession();
-                    Anchor currentAnchor = currentSelectedAnchorNode.getAnchor();
-                    Pose oldPose = currentAnchor.getPose();
-                    Pose newPose = oldPose.compose(Pose.makeTranslation(0.05f,0,0));
-                    currentSelectedAnchorNode = moveRenderable(currentSelectedAnchorNode, newPose);
-                }
-            }
-        });
-
-        //Add a listener for the up button
-        FloatingActionButton upButtom = findViewById(R.id.up_button);
-        upButtom.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Move the anchor up
-                Log.d(TAG,"Moving anchor Up");
-                if (currentSelectedAnchorNode != null) {
-                    //Get the current Pose and transform it then set a new anchor at the new pose
-                    Session session = arFragment.getArSceneView().getSession();
-                    Anchor currentAnchor = currentSelectedAnchorNode.getAnchor();
-                    Pose oldPose = currentAnchor.getPose();
-                    Pose newPose = oldPose.compose(Pose.makeTranslation(0,0.05f,0));
-                    currentSelectedAnchorNode = moveRenderable(currentSelectedAnchorNode, newPose);
-                }
-            }
-        });
-
-        //Add a listener for the down button
-        FloatingActionButton downButtom = findViewById(R.id.down_button);
-        downButtom.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Move the anchor down
-                Log.d(TAG,"Moving anchor Down");
-                if (currentSelectedAnchorNode != null) {
-                    //Get the current Pose and transform it then set a new anchor at the new pose
-                    Session session = arFragment.getArSceneView().getSession();
-                    Anchor currentAnchor = currentSelectedAnchorNode.getAnchor();
-                    Pose oldPose = currentAnchor.getPose();
-                    Pose newPose = oldPose.compose(Pose.makeTranslation(0,-0.05f,0));
-                    currentSelectedAnchorNode = moveRenderable(currentSelectedAnchorNode, newPose);
-                }
-            }
-        });
-
-        //Add a listener for the drawline button
-        FloatingActionButton drawLineButton = findViewById(R.id.draw_buttom);
-        drawLineButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-
-            public void onClick(View view) {
-                //draw a line bteween the two Anchors, if there are exactly two anchros
-                Log.d(TAG,"drawing line");
-                if (numberOfAnchors == 2 ) {
-                    drawLine(anchorNodeList.get(0), anchorNodeList.get(1));
-                }
-            }
-        });
-
-        //Add a listener for the delete button
-        FloatingActionButton deleteButton = findViewById(R.id.delete_buttom);
-        deleteButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-
-            public void onClick(View view) {
-                //Delete the Anchor if it exists
-                Log.d(TAG,"Deleteing anchor");
-                int currentAnchorIndex;
-                if (numberOfAnchors < 1 ) {
-                    Toast.makeText(LineViewMainActivity.this, "All nodes deleted", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                removeAnchorNode(currentSelectedAnchorNode);
-                currentSelectedAnchorNode = null;
-
-                //Remove the line if it exists also
-                removeLine(nodeForLine);
-            }
-        });
     }
 
     private void handleOnTouch(HitTestResult hitTestResult, MotionEvent motionEvent) {
-        Log.d(TAG,"handleOnTouch");
+        Log.d(TAG, "handleOnTouch");
         // First call ArFragment's listener to handle TransformableNodes.
         arFragment.onPeekTouch(hitTestResult, motionEvent);
+
+        Session session = arFragment.getArSceneView().getSession();
+
 
         //We are only interested in the ACTION_UP events - anything else just return
         if (motionEvent.getAction() != MotionEvent.ACTION_UP) {
@@ -272,78 +247,145 @@ public class LineViewMainActivity extends AppCompatActivity {
         }
 
         // Check for touching a Sceneform node
-        if (hitTestResult.getNode() != null) {
-            Log.d(TAG,"handleOnTouch hitTestResult.getNode() != null");
+        if (hitTestResult.getNode() == null) {
+            Log.d(TAG, "handleOnTouch hitTestResult.getNode() != null");
             //Toast.makeText(LineViewMainActivity.this, "hitTestResult is not null: ", Toast.LENGTH_SHORT).show();
             Node hitNode = hitTestResult.getNode();
 
-            if (hitNode.getRenderable() == andyRenderable) {
-                //Toast.makeText(LineViewMainActivity.this, "We've hit Andy!!", Toast.LENGTH_SHORT).show();
-                //First make the current (soon to be not current) selected node not highlighted
-                if (currentSelectedAnchorNode != null) {
-                    currentSelectedAnchorNode.setRenderable(andyRenderable);
-                }
-                //Now highlight the new current selected node
-                ModelRenderable highlightedAndyRenderable = andyRenderable.makeCopy();
-                highlightedAndyRenderable.getMaterial(1).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255,0,0)));
-                Log.i("test", String.valueOf(highlightedAndyRenderable.getSubmeshCount()));
+            int drawing = 0;
 
-
-
-                hitNode.setRenderable(highlightedAndyRenderable);
-                currentSelectedAnchorNode = (AnchorNode) hitNode;
+            switch (drawing){
+                case 0:
+                    setColorSnake(session, new ArrayList<>());
+                    break;
+                case 1:
+                    setColorSnake(session,new ArrayList<>());
+                    break;
+                case 2:
+                    setColorSnake(session,new ArrayList<>());
+                    break;
             }
-            return;
-        } else{
-            // Place the anchor 0.5m in front of the camera. Make sure we are not at maximum anchor first.
-            Log.d(TAG,"adding Andy in fornt of camera");
-            if (numberOfAnchors < MAX_ANCHORS) {
-                Frame frame = arFragment.getArSceneView().getArFrame();
-                int currentAnchorIndex = numberOfAnchors;
-                Session session = arFragment.getArSceneView().getSession();
-                Anchor newMarkAnchor = session.createAnchor(
-                        frame.getCamera().getPose()
-                                .compose(Pose.makeTranslation(0, 0, -1.00f))
-                                .extractTranslation());
-                AnchorNode addedAnchorNode = new AnchorNode(newMarkAnchor);
-                addedAnchorNode.setRenderable(andyRenderable);
-                addAnchorNode(addedAnchorNode);
-                currentSelectedAnchorNode = addedAnchorNode;
-            } else {
-                Log.d(TAG,"MAX_ANCHORS exceeded");
-            }
+
         }
 
     }
 
-  /**
-   * Returns false and displays an error message if Sceneform can not run, true if Sceneform can run
-   * on this device.
-   *
-   * <p>Sceneform requires Android N on the device as well as OpenGL 3.0 capabilities.
-   *
-   * <p>Finishes the activity if Sceneform can not run
-   */
-  public static boolean checkIsSupportedDeviceOrFinish(final Activity activity) {
-    if (Build.VERSION.SDK_INT < VERSION_CODES.N) {
-      Log.e(TAG, "Sceneform requires Android N or later");
-      Toast.makeText(activity, "Sceneform requires Android N or later", Toast.LENGTH_LONG).show();
-      activity.finish();
-      return false;
+
+
+    private void setColorSnake(Session session, ArrayList<String> colors){
+
+
+        // Place the anchor 0.5m in front of the camera. Make sure we are not at maximum anchor first.
+        Log.d(TAG, "adding Andy in fornt of camera");
+        if (numberOfAnchors < MAX_ANCHORS) {
+            Frame frame = arFragment.getArSceneView().getArFrame();
+            int currentAnchorIndex = numberOfAnchors;
+            try {
+
+                if (frame.getCamera().getTrackingState() != TrackingState.TRACKING) {
+
+                    Toast.makeText(this, "The camera is not tracking", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
+
+                Anchor newMarkAnchor = session.createAnchor(
+                        frame.getCamera().getPose()
+                                .compose(Pose.makeTranslation(0, 0, -10.00f))
+                                .extractTranslation());
+                AnchorNode addedAnchorNode = new AnchorNode(newMarkAnchor);
+
+                snakeRenderable.setShadowCaster(true);
+
+                //arFragment.getArSceneView().setLightEstimationEnabled(true);
+
+
+                addedAnchorNode.setRenderable(snakeRenderable);
+
+
+                for(int i = 0; i < snakeRenderable.getSubmeshCount(); i++){
+
+
+                    switch (i){
+                        case 0 :
+                            snakeRenderable.getMaterial(0).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 255)));
+                            break;
+                        case 1 :
+                            snakeRenderable.getMaterial(1).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 255)));
+                            break;
+                        case 2 :
+                            snakeRenderable.getMaterial(2).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 255, 0)));
+                            break;
+                        case 3:
+                            snakeRenderable.getMaterial(3).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 255)));
+                            break;
+                        case 4 :
+                            snakeRenderable.getMaterial(4).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 0)));
+                            break;
+                        case 5:
+                            snakeRenderable.getMaterial(5).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 255, 255)));
+                            break;
+                        case 6:
+                            snakeRenderable.getMaterial(6).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 255, 255)));
+                            break;
+                    }
+
+                }
+
+
+                addAnchorNode(addedAnchorNode);
+                currentSelectedAnchorNode = addedAnchorNode;
+
+
+            } catch (NotTrackingException e) {
+                Log.d(TAG, "Not tracking ");
+
+            }
+        } else {
+            Log.d(TAG, "MAX_ANCHORS exceeded");
+        }
+
+
     }
-    String openGlVersionString =
-        ((ActivityManager) activity.getSystemService(Context.ACTIVITY_SERVICE))
-            .getDeviceConfigurationInfo()
-            .getGlEsVersion();
-    if (Double.parseDouble(openGlVersionString) < MIN_OPENGL_VERSION) {
-      Log.e(TAG, "Sceneform requires OpenGL ES 3.0 later");
-      Toast.makeText(activity, "Sceneform requires OpenGL ES 3.0 or later", Toast.LENGTH_LONG)
-          .show();
-      activity.finish();
-      return false;
+
+    private void setMonkeyColor(ArrayList<Integer> listColors){
+
     }
-    return true;
-  }
+
+    private void setRhinoColor(ArrayList<Integer> listColors){
+
+    }
+
+    /**
+     * Returns false and displays an error message if Sceneform can not run, true if Sceneform can run
+     * on this device.
+     *
+     * <p>Sceneform requires Android N on the device as well as OpenGL 3.0 capabilities.
+     *
+     * <p>Finishes the activity if Sceneform can not run
+     */
+
+
+    public static boolean checkIsSupportedDeviceOrFinish(final Activity activity) {
+        if (Build.VERSION.SDK_INT < VERSION_CODES.N) {
+            Log.e(TAG, "Sceneform requires Android N or later");
+            Toast.makeText(activity, "Sceneform requires Android N or later", Toast.LENGTH_LONG).show();
+            activity.finish();
+            return false;
+        }
+        String openGlVersionString =
+                ((ActivityManager) activity.getSystemService(Context.ACTIVITY_SERVICE))
+                        .getDeviceConfigurationInfo()
+                        .getGlEsVersion();
+        if (Double.parseDouble(openGlVersionString) < MIN_OPENGL_VERSION) {
+            Log.e(TAG, "Sceneform requires OpenGL ES 3.0 later");
+            Toast.makeText(activity, "Sceneform requires OpenGL ES 3.0 or later", Toast.LENGTH_LONG)
+                    .show();
+            activity.finish();
+            return false;
+        }
+        return true;
+    }
 
     private void removeAnchorNode(AnchorNode nodeToremove) {
         //Remove an anchor node
@@ -360,16 +402,7 @@ public class LineViewMainActivity extends AppCompatActivity {
         }
     }
 
-    private void removeLine(Node lineToRemove) {
-      //remove the line
-        Log.e(TAG, "removeLine");
-        if (lineToRemove != null) {
-            Log.e(TAG, "removeLine lineToRemove is not mull");
-            arFragment.getArSceneView().getScene().removeChild(lineToRemove);
-            lineToRemove.setParent(null);
-            lineToRemove = null;
-        }
-    }
+
 
     private void addAnchorNode(AnchorNode nodeToAdd) {
         //Add an anchor node
@@ -384,56 +417,18 @@ public class LineViewMainActivity extends AppCompatActivity {
             arFragment.getArSceneView().getScene().removeChild(markAnchorNodeToMove);
             anchorNodeList.remove(markAnchorNodeToMove);
         } else {
-            Log.d(TAG,"moveRenderable - markAnchorNode was null, the little £$%^...");
+            Log.d(TAG, "moveRenderable - markAnchorNode was null, the little £$%^...");
             return null;
         }
         Frame frame = arFragment.getArSceneView().getArFrame();
         Session session = arFragment.getArSceneView().getSession();
         Anchor markAnchor = session.createAnchor(newPoseToMoveTo.extractTranslation());
         AnchorNode newMarkAnchorNode = new AnchorNode(markAnchor);
-        newMarkAnchorNode.setRenderable(andyRenderable);
+        newMarkAnchorNode.setRenderable(snakeRenderable);
         newMarkAnchorNode.setParent(arFragment.getArSceneView().getScene());
         anchorNodeList.add(newMarkAnchorNode);
 
-        //Delete the line if it is drawn
-        removeLine(nodeForLine);
-
         return newMarkAnchorNode;
     }
-
-    private void drawLine(AnchorNode node1, AnchorNode node2) {
-      //Draw a line between two AnchorNodes (adapted from https://stackoverflow.com/a/52816504/334402)
-        Log.d(TAG,"drawLine");
-        Vector3 point1, point2;
-        point1 = node1.getWorldPosition();
-        point2 = node2.getWorldPosition();
-
-
-        //First, find the vector extending between the two points and define a look rotation
-        //in terms of this Vector.
-        final Vector3 difference = Vector3.subtract(point1, point2);
-        final Vector3 directionFromTopToBottom = difference.normalized();
-        final Quaternion rotationFromAToB =
-                Quaternion.lookRotation(directionFromTopToBottom, Vector3.up());
-        MaterialFactory.makeOpaqueWithColor(getApplicationContext(), new Color(0, 255, 244))
-                .thenAccept(
-                        material -> {
-                            /* Then, create a rectangular prism, using ShapeFactory.makeCube() and use the difference vector
-                                   to extend to the necessary length.  */
-                            Log.d(TAG,"drawLine insie .thenAccept");
-                            ModelRenderable model = ShapeFactory.makeCube(
-                                    new Vector3(.01f, .01f, difference.length()),
-                                    Vector3.zero(), material);
-                            /* Last, set the world rotation of the node to the rotation calculated earlier and set the world position to
-                                   the midpoint between the given points . */
-                            Anchor lineAnchor = node2.getAnchor();
-                            nodeForLine = new Node();
-                            nodeForLine.setParent(node1);
-                            nodeForLine.setRenderable(model);
-                            nodeForLine.setWorldPosition(Vector3.add(point1, point2).scaled(.5f));
-                            nodeForLine.setWorldRotation(rotationFromAToB);
-                        }
-                );
-
-    }
 }
+
