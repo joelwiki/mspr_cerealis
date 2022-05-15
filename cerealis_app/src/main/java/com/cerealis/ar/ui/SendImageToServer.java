@@ -29,95 +29,20 @@ import java.net.URLConnection;
 public class SendImageToServer extends Socket {
 
     String host;
+    private boolean imageHasBeenProcessed = false;
+    private boolean isError = false;
+
+    String responseString = null;
+
 
     public SendImageToServer(String host) {
         this.host = host;
     }
 
-    public void sendImageToServer(String file) {
-        URLConnection urlconnection = null;
-        try {
-            InputStream packageVersionFile = null;
-            URL url = null;
-
-            /* if file are standalone packet */
-            if (file == null) {
-                //send builtin packet
-                Log.e("TCPThread", "cannot send nothing to the server");
-            } else {
-                packageVersionFile = new FileInputStream(file);
-                url = new URL(host); // setting the same name that the package on the drone
-            }
-
-            urlconnection = url.openConnection();
-            urlconnection.setDoOutput(true);
-            urlconnection.setDoInput(true);
-
-
-            if (urlconnection instanceof HttpURLConnection) {
-                urlconnection.setRequestProperty("Content-Type", "image/jpg");
-                urlconnection.setRequestProperty("file", "rhino.jpg");
-                ((HttpURLConnection) urlconnection).setRequestMethod("POST");
-                ((HttpURLConnection) urlconnection).setRequestProperty("Content-type", "multipart/form-data");
-                ((HttpURLConnection) urlconnection).connect();
-            }
-
-
-            BufferedOutputStream bos = new BufferedOutputStream(urlconnection.getOutputStream());
-            BufferedInputStream bis = new BufferedInputStream(packageVersionFile);
-
-
-            int i;
-            // read byte by chunck
-            byte[] buffer = new byte[4 * 1024];
-
-            int read;
-            int k = 0;
-            while ((read = bis.read(buffer, 0, buffer.length)) != -1) {
-                bos.write(buffer, 0, read);
-                bos.flush();
-            }
-
-            bis.close();
-            bos.close();
-
-            System.out.println("DATA FROM RETURN " + ((HttpURLConnection) urlconnection).getResponseMessage());
-
-            /* see http code */
-
-
-            switch (((HttpURLConnection) urlconnection).getResponseCode()) {
-                case 200:
-                    Log.i("TcpThread", "Transmission OK");
-                    //start only if the package was successfully sent
-                    break;
-                case 201:
-                    // transmission was ok and ressources was created
-                    Log.i("TcpThread", "Transmission OK");
-                    //start only if the package was successfully sent
-
-                    break;
-                case 400:
-                case 403:
-                    Log.i("TcpThread", "Transmission FAILED");
-                    break;
-                case 500:
-                    Log.i("TcpThread", "Server FAILED");
-                    break;
-                default:
-                    break;
-            }
-
-        } catch (Exception e) {
-            System.out.println("ERROR DURING CONNECTION");
-            e.printStackTrace();
-        }
-
-    }
-
-
     public String uploadFile(String file, int drawing) {
-        String responseString = null;
+        responseString = null;
+        imageHasBeenProcessed = false;
+        isError = false;
 
         long totalSize = 0;
 
@@ -137,13 +62,13 @@ public class SendImageToServer extends Socket {
 
                             Log.e("test", String.valueOf(num));
 
-                            int result = (int) ((num/total) *100);
+                            //int result = (int) ((num/total) *100);
 
-                            if(result>=100){
+                            //if(result>=100){
                                 //so we have finished
                                 System.out.println("Transfer finished");
 
-                            }
+                            //}
 
                         }
                     });
@@ -166,12 +91,16 @@ public class SendImageToServer extends Socket {
             if (statusCode == 200) {
                 // Server response
                 responseString = EntityUtils.toString(r_entity);
+                imageHasBeenProcessed = true;
             } else {
                 responseString = "Error occurred! Http Status Code: "
                         + statusCode;
+
+                imageHasBeenProcessed = false;
+                isError = true;
             }
 
-            System.out.println(responseString);
+
 
 
 
@@ -187,4 +116,15 @@ public class SendImageToServer extends Socket {
     }
 
 
+    public synchronized boolean imageHasBeenProcessed() {
+        return imageHasBeenProcessed;
+    }
+
+    public synchronized boolean isError(){
+        return isError;
+    }
+
+    public synchronized String getResult(){
+        return responseString;
+    }
 }

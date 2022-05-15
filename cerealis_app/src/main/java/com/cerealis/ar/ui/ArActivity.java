@@ -35,9 +35,11 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.cerealis.ar.R;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.Frame;
 import com.google.ar.core.HitResult;
@@ -54,6 +56,10 @@ import com.google.ar.sceneform.rendering.Light;
 import com.google.ar.sceneform.rendering.ModelRenderable;
 //import com.google.ar.sceneform.samples.hellosceneform.R;
 import com.google.ar.sceneform.ux.ArFragment;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -77,8 +83,12 @@ public class ArActivity extends AppCompatActivity {
     private Integer numberOfAnchors = 0;
     private AnchorNode currentSelectedAnchorNode = null;
     private Node nodeForLine;
+    private boolean photoHasBeenTaken = false;
 
 
+    SendImageToServer sendImageToServer;
+
+    @RequiresApi(api = VERSION_CODES.O)
     @Override
     @SuppressWarnings({"AndroidApiChecker", "FutureReturnValueIgnored"})
     // CompletableFuture requires api level 24
@@ -212,7 +222,7 @@ public class ArActivity extends AppCompatActivity {
         File output=null;
 
         output=new File(dir, "test.jpeg");
-        //takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(output));
+        takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(output));
 
         try {
             startActivityForResult(takePictureIntent, 1);
@@ -233,19 +243,22 @@ public class ArActivity extends AppCompatActivity {
 
             File dir= Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
 
+            photoHasBeenTaken = true;
+
             File fileToSend = new File(dir+"/test.jpeg");
 
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    SendImageToServer sendImageToServer = new SendImageToServer("http://192.168.1.72:5000/file-upload");
-                    sendImageToServer.uploadFile(fileToSend.getAbsolutePath(),0);
+                    sendImageToServer = new SendImageToServer("http://192.168.1.72:5000/file-upload");
+                    sendImageToServer.uploadFile(fileToSend.getAbsolutePath(),1);
                 }
             }).start();
         }
 
     }
 
+    @RequiresApi(api = VERSION_CODES.O)
     private void handleOnTouch(HitTestResult hitTestResult, MotionEvent motionEvent) {
         Log.d(TAG, "handleOnTouch");
         // First call ArFragment's listener to handle TransformableNodes.
@@ -260,33 +273,97 @@ public class ArActivity extends AppCompatActivity {
         }
 
         // Check for touching a Sceneform node
-        if (hitTestResult.getNode() == null) {
-            Log.d(TAG, "handleOnTouch hitTestResult.getNode() != null");
-            //Toast.makeText(LineViewMainActivity.this, "hitTestResult is not null: ", Toast.LENGTH_SHORT).show();
-            Node hitNode = hitTestResult.getNode();
 
-            int drawing = 1;
 
-            switch (drawing){
-                case 0:
-                    setColorSnake(session, new ArrayList<>());
-                    break;
-                case 1:
-                    setRhinoColor(session,new ArrayList<>());
-                    break;
-                case 2:
-                    setColorSnake(session,new ArrayList<>());
-                    break;
+
+        if(!photoHasBeenTaken){
+            Snackbar.make(arFragment.getArSceneView(),"Prend d'abord en photo ton dessin", Snackbar.LENGTH_LONG).show();
+            return;
+        }else {
+
+            if(!sendImageToServer.imageHasBeenProcessed() || sendImageToServer.isError()){
+                Snackbar.make(arFragment.getArSceneView(),"Merci d'attendre quelques instants", Snackbar.LENGTH_LONG).show();
+                return;
             }
+
+
+            ArrayList<com.cerealis.ar.ui.Color> colorsArrayList = getArrayListColors(sendImageToServer.getResult());
+
+
+            if (hitTestResult.getNode() == null) {
+                Log.d(TAG, "handleOnTouch hitTestResult.getNode() != null");
+                //Toast.makeText(LineViewMainActivity.this, "hitTestResult is not null: ", Toast.LENGTH_SHORT).show();
+                Node hitNode = hitTestResult.getNode();
+
+                int drawing = 1;
+
+                switch (drawing){
+                    case 0:
+                        setColorSnake(session, colorsArrayList);
+                        break;
+                    case 1:
+                        setRhinoColor(session,colorsArrayList);
+                        break;
+                    case 2:
+                        setColorSnake(session,colorsArrayList);
+                        break;
+                }
+
+            }
+        }
+
+
+
+    }
+
+    @RequiresApi(api = VERSION_CODES.O)
+    private ArrayList<com.cerealis.ar.ui.Color> getArrayListColors(String result) {
+
+        ArrayList<com.cerealis.ar.ui.Color> colorArrayList = new ArrayList<>();
+
+        try {
+            JSONObject jsonObject = new JSONObject(result);
+
+            JSONArray jsonArray = jsonObject.getJSONArray("colors");
+
+
+            for(int i = 0; i < jsonArray.length();i++){
+                colorArrayList.add(hex2Rgb(jsonArray.getString(i)));
+
+                System.out.println(jsonArray.getString(i));
+
+                System.out.println(colorArrayList.get(i).r);
+                System.out.println(colorArrayList.get(i).g);
+                System.out.println(colorArrayList.get(i).b);
+                System.out.println("\n");
+
+
+            }
+
+            return colorArrayList;
+
+        } catch (JSONException e) {
+            e.printStackTrace();
+            return null;
 
         }
 
     }
 
+    public static com.cerealis.ar.ui.Color hex2Rgb(String colorStr) {
+
+        colorStr = colorStr.replace("#","");
+        return new com.cerealis.ar.ui.Color(
+                Integer.valueOf(colorStr.substring(0,2),16),
+                Integer.valueOf(colorStr.substring(2,4),16),
+                Integer.valueOf(colorStr.substring(4,6),16)
+                );
+
+    }
 
 
 
-    private void setColorSnake(Session session, ArrayList<String> colors){
+    private void setColorSnake(Session session, ArrayList<com.cerealis.ar.ui.Color> colors){
 
 
         // Place the anchor 0.5m in front of the camera. Make sure we are not at maximum anchor first.
@@ -298,14 +375,14 @@ public class ArActivity extends AppCompatActivity {
 
                 if (frame.getCamera().getTrackingState() != TrackingState.TRACKING) {
 
-                    Toast.makeText(this, "The camera is not tracking", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Bouge l'appareil avant toucher l'écran", Toast.LENGTH_LONG).show();
                     return;
                 }
 
 
                 Anchor newMarkAnchor = session.createAnchor(
                         frame.getCamera().getPose()
-                                .compose(Pose.makeTranslation(0, 0, -10.00f))
+                                .compose(Pose.makeTranslation(0, 25, -10.00f))
                                 .extractTranslation());
                 AnchorNode addedAnchorNode = new AnchorNode(newMarkAnchor);
 
@@ -365,7 +442,7 @@ public class ArActivity extends AppCompatActivity {
 
     }
 
-    private void setRhinoColor(Session session, ArrayList<String> colors){
+    private void setRhinoColor(Session session, ArrayList<com.cerealis.ar.ui.Color> colors){
 
         // Place the anchor 0.5m in front of the camera. Make sure we are not at maximum anchor first.
         Log.d(TAG, "adding Andy in fornt of camera");
@@ -395,30 +472,32 @@ public class ArActivity extends AppCompatActivity {
                 addedAnchorNode.setRenderable(rhinoRenderable);
 
 
-                for(int i = 0; i < rhinoRenderable.getSubmeshCount(); i++){
 
+                for(int i = 0; i < rhinoRenderable.getSubmeshCount(); i++){
 
                     switch (i){
                         case 0 :
-                            rhinoRenderable.getMaterial(0).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 255)));
+                            com.cerealis.ar.ui.Color colorBodyDown = colors.get(4);
+                            rhinoRenderable.getMaterial(0).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb((int) colorBodyDown.r, (int) colorBodyDown.g, (int)colorBodyDown.b)));
                             break;
                         case 1 :
-                            rhinoRenderable.getMaterial(1).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 255)));
+                            com.cerealis.ar.ui.Color  colorHeadDown = colors.get(1);
+                            rhinoRenderable.getMaterial(1).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb((int)colorHeadDown.r, (int) colorHeadDown.g, (int)colorHeadDown.b)));
                             break;
                         case 2 :
-                            rhinoRenderable.getMaterial(2).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 255, 0)));
+                            com.cerealis.ar.ui.Color  colorHeadUp = colors.get(0);
+                            rhinoRenderable.getMaterial(2).setFloat3("baseColorTint", new Color((int) colorHeadUp.r, (int) colorHeadUp.g, (int)colorHeadUp.b));
                             break;
                         case 3:
-                            rhinoRenderable.getMaterial(3).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 255)));
+                            com.cerealis.ar.ui.Color  colorHorn = colors.get(2);
+                            rhinoRenderable.getMaterial(3).setFloat3("baseColorTint", new Color((int) colorHorn.r, (int) colorHorn.g, (int)colorHorn.b));
                             break;
                         case 4 :
-                            rhinoRenderable.getMaterial(4).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 0)));
+                            rhinoRenderable.getMaterial(4).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb((int) 0, (int) 0, 0)));
                             break;
                         case 5:
-                            rhinoRenderable.getMaterial(5).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 255, 255)));
-                            break;
-                        case 6:
-                            rhinoRenderable.getMaterial(6).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 255, 255)));
+                            com.cerealis.ar.ui.Color  colorBodyUp = colors.get(3);
+                            rhinoRenderable.getMaterial(5).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(colorBodyUp.r, colorBodyUp.g, colorBodyUp.b)));
                             break;
                     }
 
