@@ -116,21 +116,35 @@ public class SendImageToServer extends Socket {
     }
 
 
-    public String uploadFile(String file) {
+    public String uploadFile(String file, int drawing) {
         String responseString = null;
+
+        long totalSize = 0;
+
 
         HttpClient httpclient = new DefaultHttpClient();
         HttpPost httppost = new HttpPost("http://192.168.1.72:5000/file-upload");
 
         try {
+            long finalTotalSize = totalSize;
             AndroidMultiPartEntity entity = new AndroidMultiPartEntity(
                     new AndroidMultiPartEntity.ProgressListener() {
 
                         @Override
-                        public void transferred(long num) {
-                            Log.e("test", String.valueOf(num));
-                        }
+                        public void transferred(long num)
+                        {
+                            long total = finalTotalSize;
 
+                            Log.e("test", String.valueOf(num));
+
+                            int result = (int) ((num/total) *100);
+
+                            if(result>=100){
+                                //so we have finished
+                                System.out.println("Transfer finished");
+                            }
+
+                        }
                     });
 
             File sourceFile = new File(file);
@@ -138,11 +152,9 @@ public class SendImageToServer extends Socket {
             // Adding file data to http body
             entity.addPart("file", new FileBody(sourceFile));
 
+            totalSize = entity.getContentLength();
+            entity.addPart("drawing",new StringBody(""+drawing));
             // Extra parameters if you want to pass to server
-            entity.addPart("website",
-                    new StringBody("www.androidhive.info"));
-            entity.addPart("email", new StringBody("abc@gmail.com"));
-
             httppost.setEntity(entity);
 
             // Making server call

@@ -218,7 +218,7 @@ public class ArActivity extends AppCompatActivity {
                 @Override
                 public void run() {
                     SendImageToServer sendImageToServer = new SendImageToServer("http://192.168.1.72:5000/file-upload");
-                    sendImageToServer.uploadFile(fileToSend.getAbsolutePath());
+                    sendImageToServer.uploadFile(fileToSend.getAbsolutePath(),0);
                 }
             }).start();
         }
