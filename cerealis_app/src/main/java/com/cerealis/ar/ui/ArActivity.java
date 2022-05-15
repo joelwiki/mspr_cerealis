@@ -70,6 +70,8 @@ public class ArActivity extends AppCompatActivity {
     private ArFragment arFragment;
     private ModelRenderable snakeRenderable;
 
+    private ModelRenderable rhinoRenderable;
+
     private AnchorNode anchorNode;
     private List<AnchorNode> anchorNodeList = new ArrayList<>();
     private Integer numberOfAnchors = 0;
@@ -124,6 +126,8 @@ public class ArActivity extends AppCompatActivity {
         // a CompletableFuture. Call thenAccept(), handle(), or check isDone() before calling get().
 
 
+
+        /*
         ModelRenderable.builder()
                 .setSource(this, R.raw.snake)
                 .build()
@@ -132,7 +136,24 @@ public class ArActivity extends AppCompatActivity {
                 .exceptionally(
                         throwable -> {
                             Toast toast =
-                                    Toast.makeText(this, "Unable to load andy renderable", Toast.LENGTH_LONG);
+                                    Toast.makeText(this, "Unable to load snake renderable", Toast.LENGTH_LONG);
+                            toast.setGravity(Gravity.CENTER, 0, 0);
+
+                            toast.show();
+                            return null;
+                        });
+
+
+         */
+        ModelRenderable.builder()
+                .setSource(this, R.raw.rhino)
+                .build()
+                .thenAccept(renderable -> rhinoRenderable = renderable)
+
+                .exceptionally(
+                        throwable -> {
+                            Toast toast =
+                                    Toast.makeText(this, "Unable to load rhino renderable", Toast.LENGTH_LONG);
                             toast.setGravity(Gravity.CENTER, 0, 0);
 
                             toast.show();
@@ -244,14 +265,14 @@ public class ArActivity extends AppCompatActivity {
             //Toast.makeText(LineViewMainActivity.this, "hitTestResult is not null: ", Toast.LENGTH_SHORT).show();
             Node hitNode = hitTestResult.getNode();
 
-            int drawing = 0;
+            int drawing = 1;
 
             switch (drawing){
                 case 0:
                     setColorSnake(session, new ArrayList<>());
                     break;
                 case 1:
-                    setColorSnake(session,new ArrayList<>());
+                    setRhinoColor(session,new ArrayList<>());
                     break;
                 case 2:
                     setColorSnake(session,new ArrayList<>());
@@ -344,7 +365,76 @@ public class ArActivity extends AppCompatActivity {
 
     }
 
-    private void setRhinoColor(ArrayList<Integer> listColors){
+    private void setRhinoColor(Session session, ArrayList<String> colors){
+
+        // Place the anchor 0.5m in front of the camera. Make sure we are not at maximum anchor first.
+        Log.d(TAG, "adding Andy in fornt of camera");
+        if (numberOfAnchors < MAX_ANCHORS) {
+            Frame frame = arFragment.getArSceneView().getArFrame();
+            int currentAnchorIndex = numberOfAnchors;
+            try {
+
+                if (frame.getCamera().getTrackingState() != TrackingState.TRACKING) {
+
+                    Toast.makeText(this, "The camera is not tracking", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
+
+                Anchor newMarkAnchor = session.createAnchor(
+                        frame.getCamera().getPose()
+                                .compose(Pose.makeTranslation(0, 0, -10.00f))
+                                .extractTranslation());
+                AnchorNode addedAnchorNode = new AnchorNode(newMarkAnchor);
+
+                rhinoRenderable.setShadowCaster(true);
+
+                //arFragment.getArSceneView().setLightEstimationEnabled(true);
+
+
+                addedAnchorNode.setRenderable(rhinoRenderable);
+
+
+                for(int i = 0; i < rhinoRenderable.getSubmeshCount(); i++){
+
+
+                    switch (i){
+                        case 0 :
+                            rhinoRenderable.getMaterial(0).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 255)));
+                            break;
+                        case 1 :
+                            rhinoRenderable.getMaterial(1).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 255)));
+                            break;
+                        case 2 :
+                            rhinoRenderable.getMaterial(2).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 255, 0)));
+                            break;
+                        case 3:
+                            rhinoRenderable.getMaterial(3).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 255)));
+                            break;
+                        case 4 :
+                            rhinoRenderable.getMaterial(4).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 0)));
+                            break;
+                        case 5:
+                            rhinoRenderable.getMaterial(5).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 255, 255)));
+                            break;
+                        case 6:
+                            rhinoRenderable.getMaterial(6).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 255, 255)));
+                            break;
+                    }
+
+                }
+
+                addAnchorNode(addedAnchorNode);
+                currentSelectedAnchorNode = addedAnchorNode;
+
+
+            } catch (NotTrackingException e) {
+                Log.d(TAG, "Not tracking ");
+
+            }
+        } else {
+            Log.d(TAG, "MAX_ANCHORS exceeded");
+        }
 
     }
 

@@ -95,3 +95,8 @@ sceneform.asset ('sampledata/models/snake.obj',
         'default',
         'sampledata/models/snake.sfa',
         'src/main/res/raw/snake')
+
+sceneform.asset ('sampledata/models/rhino.obj',
+        'default',
+        'sampledata/models/rhino.sfa',
+        'src/main/res/raw/rhino')

@@ -142,6 +142,7 @@ public class SendImageToServer extends Socket {
                             if(result>=100){
                                 //so we have finished
                                 System.out.println("Transfer finished");
+
                             }
 
                         }
