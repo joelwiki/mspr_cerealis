@@ -39,6 +39,7 @@ import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.cerealis.ar.R;
+import com.cerealis.ar.service.ApiService;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.Frame;
@@ -192,6 +193,20 @@ public class ArActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 //Make a screenshot of the drawing
+
+                boolean result = true;
+                result = new ScreenShotCapturer().recordImage(getApplicationContext(),arFragment.getArSceneView().getDrawingCache());
+
+                if(result){
+                    openSocialMediaDialog();
+                }else{
+                    Snackbar.make(arFragment.getArSceneView(),"Nous n'avons pas réussi à enregistrer l'image",
+                            Snackbar.LENGTH_LONG).show();
+                }
+
+
+
+
             }
         });
 
@@ -211,6 +226,21 @@ public class ArActivity extends AppCompatActivity {
                 }
             }
         });
+
+    }
+
+    private void openSocialMediaDialog() {
+
+        ApiService apiService = new ApiService(this);
+        apiService.sendUser("joel","joel.wiki");
+
+
+
+
+
+
+
+
 
     }
 
