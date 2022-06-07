@@ -17,25 +17,32 @@ package com.cerealis.ar.ui;
 
 import android.app.Activity;
 import android.app.ActivityManager;
-import android.content.ActivityNotFoundException;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Environment;
-import android.provider.MediaStore;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.PixelCopy;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 
 import com.cerealis.ar.R;
 import com.cerealis.ar.service.ApiService;
@@ -49,6 +56,7 @@ import com.google.ar.core.Session;
 import com.google.ar.core.TrackingState;
 import com.google.ar.core.exceptions.NotTrackingException;
 import com.google.ar.sceneform.AnchorNode;
+import com.google.ar.sceneform.ArSceneView;
 import com.google.ar.sceneform.HitTestResult;
 import com.google.ar.sceneform.Node;
 import com.google.ar.sceneform.rendering.Color;
@@ -61,8 +69,14 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * LineViewMainActivity - built on HelloSceneForm sample.
@@ -266,25 +280,134 @@ public class ArActivity extends AppCompatActivity {
     private void openSocialMediaDialog() {
 
         ApiService apiService = new ApiService(this);
-        apiService.sendUser("joel","joel.wiki");
+
+
+        View view = getLayoutInflater().inflate(R.layout.alertuser,null);
+
+        EditText editTextUser,editTextEmail;
+
+        editTextUser = view.findViewById(R.id.name);
+        editTextEmail = view.findViewById(R.id.email);
+
+        AlertDialog.Builder alertDialog = new AlertDialog.Builder(this);
+
+        alertDialog.setView(view);
+        alertDialog.setPositiveButton("Send", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+
+                String email = editTextEmail.getText().toString();
+                String user = editTextUser.getText().toString();
+
+                if(user.isEmpty()){
+                    editTextUser.setError("Error, user is empty");
+
+                }
+
+                if (email.isEmpty()){
+                    editTextEmail.setError("Error : your email is empty");
+                }
+
+                if(!user.isEmpty() && (!email.isEmpty() && validate(email))){
+                    apiService.sendUser(user,email);
+
+                    //create screenshot
+                }else{
+                    Toast.makeText(getApplicationContext(),"Error : please check your info", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+
+        alertDialog.show();
 
     }
 
+    public static boolean validate(String emailStr) {
+        Matcher matcher = VALID_EMAIL_ADDRESS_REGEX.matcher(emailStr);
+        return matcher.find();
+    }
+
+    public static final Pattern VALID_EMAIL_ADDRESS_REGEX =
+            Pattern.compile("^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,6}$", Pattern.CASE_INSENSITIVE);
+
     private void dispatchTakePictureIntent() {
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
-        File dir= Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        View MainView = this.getWindow().getDecorView();
+        MainView.setDrawingCacheEnabled(true);
+        MainView.buildDrawingCache();
+        Bitmap MainBitmap = MainView.getDrawingCache();
+        Rect frame = new Rect();
 
-        File output=null;
+        this.getWindow().getDecorView().findViewById(R.id.ux_fragment);
+        //to remove statusBar from the taken sc
+        int statusBarHeight = frame.top;
+        //using screen size to create bitmap
+        int width = this.getWindowManager().getDefaultDisplay().getWidth();
+        int height = this.getWindowManager().getDefaultDisplay().getHeight();
 
-        output=new File(dir, "test.jpeg");
-        takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(output));
+        ArSceneView arSceneView = arFragment.getArSceneView();
 
-        try {
-            startActivityForResult(takePictureIntent, 1);
-        } catch (ActivityNotFoundException e) {
-            // display error state to the user
+        final Bitmap bitmap = Bitmap.createBitmap(arSceneView.getWidth(), arSceneView.getHeight(), Bitmap.Config.ARGB_8888);
+
+
+        Bitmap OutBitmap = Bitmap.createBitmap(MainBitmap, 0, statusBarHeight, width, height - statusBarHeight);
+
+
+        final HandlerThread handlerThread = new HandlerThread("PixelCopier");
+        handlerThread.start();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            PixelCopy.request(arSceneView, OutBitmap, (copyResult) -> {
+                if (copyResult == PixelCopy.SUCCESS) {
+
+                    String path = Environment.getExternalStorageDirectory().toString();
+                    OutputStream fOut = null;
+                    //you can also using current time to generate name
+
+                    File file = new File(Environment.getExternalStorageDirectory().toString() + "/DCIM/testScreenShot.png");
+                    try {
+                        fOut = new FileOutputStream(file);
+                        OutBitmap.compress(Bitmap.CompressFormat.PNG, 100, fOut);
+                        fOut.flush();
+                        fOut.close();
+
+                        //this line will add the saved picture to gallery
+                        //MediaStore.Images.Media.insertImage(getContentResolver(), file.getAbsolutePath(), file.getName(), file.getName());
+
+
+                        Intent share = new Intent(Intent.ACTION_SEND);
+                        share.setType("image/*");
+
+
+                        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        Uri photoURI = FileProvider.getUriForFile(this, this.getApplicationContext().getPackageName() + ".provider", file);
+                        share.putExtra(Intent.EXTRA_TEXT, "#cerealis #coloring #AR");
+                        share.putExtra(Intent.EXTRA_STREAM, photoURI);
+                        startActivity(Intent.createChooser(share, "Share Image"));
+
+
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+
+                } else {
+                    Toast toast = Toast.makeText(this,
+                            "Error" + copyResult, Toast.LENGTH_LONG);
+                    toast.show();
+                }
+                handlerThread.quitSafely();
+            }, new Handler(handlerThread.getLooper()));
+
+
+
         }
+
+
+
+
     }
 
 
@@ -348,6 +471,9 @@ public class ArActivity extends AppCompatActivity {
 
 
 
+        setColorSnake(session,new ArrayList<com.cerealis.ar.ui.Color>());
+
+
         if(!photoHasBeenTaken){
             Snackbar.make(arFragment.getArSceneView(),"Prend d'abord en photo ton dessin", Snackbar.LENGTH_LONG).show();
             return;
@@ -366,7 +492,6 @@ public class ArActivity extends AppCompatActivity {
                 Log.d(TAG, "handleOnTouch hitTestResult.getNode() != null");
                 //Toast.makeText(LineViewMainActivity.this, "hitTestResult is not null: ", Toast.LENGTH_SHORT).show();
                 Node hitNode = hitTestResult.getNode();
-
 
 
                 switch (drawing){
@@ -454,7 +579,7 @@ public class ArActivity extends AppCompatActivity {
 
                 Anchor newMarkAnchor = session.createAnchor(
                         frame.getCamera().getPose()
-                                .compose(Pose.makeTranslation(0, 25, -10.00f))
+                                .compose(Pose.makeTranslation(0, 0, -10.00f))
                                 .extractTranslation());
                 AnchorNode addedAnchorNode = new AnchorNode(newMarkAnchor);
 

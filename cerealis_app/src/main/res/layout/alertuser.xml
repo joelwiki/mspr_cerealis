@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Your name"
+        android:layout_marginBottom="5dp"
+        android:layout_marginLeft="5dp"
+        ></TextView>
+    <EditText
+        android:id="@+id/name"
+        android:textColor="@color/colorPrimary"
+        android:layout_width="match_parent"
+        android:inputType="textEmailAddress"
+        android:layout_height="50dp"
+        android:hint="example : Arnaud"
+        android:layout_marginLeft="5dp"
+
+        android:layout_marginBottom="5dp">
+    </EditText>
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Your email"
+        android:layout_marginLeft="5dp"
+        android:layout_marginBottom="5dp"></TextView>
+    <EditText
+        android:id="@+id/email"
+        android:textColor="@color/colorPrimary"
+        android:layout_width="match_parent"
+        android:inputType="textEmailAddress"
+        android:layout_height="50dp"
+        android:hint="example : test@test.com"
+        android:layout_marginLeft="5dp"
+        android:layout_marginBottom="5dp">
+    </EditText>
+</LinearLayout>
