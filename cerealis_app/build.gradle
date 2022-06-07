@@ -123,5 +123,10 @@ dependencies {
             'sampledata/models/rhino.sfa',
             'src/main/res/raw/rhino')
 
+    sceneform.asset('sampledata/models/monkey.obj',
+            'default',
+            'sampledata/models/monkey.sfa',
+            'src/main/res/raw/monkey')
+
 
 }

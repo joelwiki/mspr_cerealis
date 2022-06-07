@@ -16,17 +16,16 @@
 package com.cerealis.ar.ui;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Environment;
-import android.provider.MediaStore;
-import android.app.ActivityManager;
-import android.content.Context;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
-
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -55,7 +54,6 @@ import com.google.ar.sceneform.Node;
 import com.google.ar.sceneform.rendering.Color;
 import com.google.ar.sceneform.rendering.Light;
 import com.google.ar.sceneform.rendering.ModelRenderable;
-//import com.google.ar.sceneform.samples.hellosceneform.R;
 import com.google.ar.sceneform.ux.ArFragment;
 
 import org.json.JSONArray;
@@ -76,8 +74,8 @@ public class ArActivity extends AppCompatActivity {
 
     private ArFragment arFragment;
     private ModelRenderable snakeRenderable;
-
     private ModelRenderable rhinoRenderable;
+    private ModelRenderable monkeyRenderable;
 
     private AnchorNode anchorNode;
     private List<AnchorNode> anchorNodeList = new ArrayList<>();
@@ -88,6 +86,8 @@ public class ArActivity extends AppCompatActivity {
 
 
     SendImageToServer sendImageToServer;
+
+    private int drawing = 0;
 
     @RequiresApi(api = VERSION_CODES.O)
     @Override
@@ -101,8 +101,12 @@ public class ArActivity extends AppCompatActivity {
             return;
         }
 
+        drawing = getIntent().getIntExtra("drawing",0);
+
+
         setContentView(R.layout.activity_ux);
 
+        Toast.makeText(this, "Drawing "+ drawing,Toast.LENGTH_LONG).show();
 
         Button button = findViewById(R.id.capture);
 
@@ -171,7 +175,35 @@ public class ArActivity extends AppCompatActivity {
                             return null;
                         });
 
+        ModelRenderable.builder()
+                .setSource(this, R.raw.snake)
+                .build()
+                .thenAccept(renderable -> snakeRenderable = renderable)
 
+                .exceptionally(
+                        throwable -> {
+                            Toast toast =
+                                    Toast.makeText(this, "Unable to load snake renderable", Toast.LENGTH_LONG);
+                            toast.setGravity(Gravity.CENTER, 0, 0);
+
+                            toast.show();
+                            return null;
+                        });
+
+        ModelRenderable.builder()
+                .setSource(this, R.raw.monkey)
+                .build()
+                .thenAccept(renderable -> monkeyRenderable = renderable)
+
+                .exceptionally(
+                        throwable -> {
+                            Toast toast =
+                                    Toast.makeText(this, "Unable to load snake renderable", Toast.LENGTH_LONG);
+                            toast.setGravity(Gravity.CENTER, 0, 0);
+
+                            toast.show();
+                            return null;
+                        });
 
         arFragment.getArSceneView().getPlaneRenderer().setVisible(false);
         if (arFragment.getArSceneView().getPlaneRenderer().isEnabled()) {
@@ -205,8 +237,6 @@ public class ArActivity extends AppCompatActivity {
                 }
 
 
-
-
             }
         });
 
@@ -227,20 +257,16 @@ public class ArActivity extends AppCompatActivity {
             }
         });
 
+
+
+        send(drawing);
+
     }
 
     private void openSocialMediaDialog() {
 
         ApiService apiService = new ApiService(this);
         apiService.sendUser("joel","joel.wiki");
-
-
-
-
-
-
-
-
 
     }
 
@@ -275,7 +301,7 @@ public class ArActivity extends AppCompatActivity {
 
             photoHasBeenTaken = true;
 
-            File fileToSend = new File(dir+"/test.jpeg");
+            File fileToSend = new File(dir+"/testTF.jpeg");
 
             new Thread(new Runnable() {
                 @Override
@@ -286,6 +312,22 @@ public class ArActivity extends AppCompatActivity {
             }).start();
         }
 
+    }
+
+    public void send(int drawing){
+        String dir= Environment.getExternalStorageDirectory().toString();
+
+        photoHasBeenTaken = true;
+
+        File fileToSend = new File(dir+"/DCIM/testTF.jpg");
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                sendImageToServer = new SendImageToServer("http://192.168.1.72:5000/file-upload");
+                sendImageToServer.uploadFile(fileToSend.getAbsolutePath(),drawing);
+            }
+        }).start();
     }
 
     @RequiresApi(api = VERSION_CODES.O)
@@ -325,7 +367,7 @@ public class ArActivity extends AppCompatActivity {
                 //Toast.makeText(LineViewMainActivity.this, "hitTestResult is not null: ", Toast.LENGTH_SHORT).show();
                 Node hitNode = hitTestResult.getNode();
 
-                int drawing = 1;
+
 
                 switch (drawing){
                     case 0:

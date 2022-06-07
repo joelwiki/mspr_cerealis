@@ -19,6 +19,7 @@ package org.tensorflow.lite.examples.classification;
 import android.Manifest;
 import android.app.Fragment;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.hardware.camera2.CameraAccessException;
@@ -52,6 +53,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
 import com.cerealis.ar.R;
+import com.cerealis.ar.ui.ArActivity;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -753,6 +755,10 @@ public abstract class CameraActivity extends AppCompatActivity
         if (getImageSaved()){
             Snackbar.make(result_text,"Image captured", Snackbar.LENGTH_INDEFINITE).show();
         }
+
+        Intent intent = new Intent(CameraActivity.this, ArActivity.class);
+        intent.putExtra("drawing", i);
+        startActivity(intent);
 
       }
     },3000);
