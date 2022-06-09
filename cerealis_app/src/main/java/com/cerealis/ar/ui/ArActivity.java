@@ -115,7 +115,7 @@ public class ArActivity extends AppCompatActivity {
             return;
         }
 
-        drawing = getIntent().getIntExtra("drawing",0);
+        drawing = 1;//getIntent().getIntExtra("drawing",0);
 
 
         setContentView(R.layout.activity_ux);
@@ -142,14 +142,14 @@ public class ArActivity extends AppCompatActivity {
         //arFragment
 
 
-        Light spotLightYellow = Light.builder(Light.Type.FOCUSED_SPOTLIGHT)
+        Light spotLightYellow = Light.builder(Light.Type.SPOTLIGHT)
                 .setColor(new Color(android.graphics.Color.YELLOW))
-                .setIntensity(50)
+                .setIntensity(800)
                 .setShadowCastingEnabled(true)
                 .build();
 
 
-        //arFragment.getArSceneView().getScene().getSunlight().setLight(spotLightYellow);
+        arFragment.getArSceneView().getScene().getSunlight().setLight(spotLightYellow);
 
         // When you build a Renderable, Sceneform loads its resources in the background while returning
         // a CompletableFuture. Call thenAccept(), handle(), or check isDone() before calling get().
@@ -212,7 +212,7 @@ public class ArActivity extends AppCompatActivity {
                 .exceptionally(
                         throwable -> {
                             Toast toast =
-                                    Toast.makeText(this, "Unable to load snake renderable", Toast.LENGTH_LONG);
+                                    Toast.makeText(this, "Unable to load monkey renderable", Toast.LENGTH_LONG);
                             toast.setGravity(Gravity.CENTER, 0, 0);
 
                             toast.show();
@@ -241,16 +241,14 @@ public class ArActivity extends AppCompatActivity {
                 //Make a screenshot of the drawing
 
                 boolean result = true;
-                result = new ScreenShotCapturer().recordImage(getApplicationContext(),arFragment.getArSceneView().getDrawingCache());
 
                 if(result){
+
                     openSocialMediaDialog();
                 }else{
                     Snackbar.make(arFragment.getArSceneView(),"Nous n'avons pas réussi à enregistrer l'image",
                             Snackbar.LENGTH_LONG).show();
                 }
-
-
             }
         });
 
@@ -273,11 +271,79 @@ public class ArActivity extends AppCompatActivity {
 
 
 
-        send(drawing);
+        send(1);
 
     }
 
     private void openSocialMediaDialog() {
+
+
+        Snackbar.make(arFragment.getArSceneView(),"Please dont move", Snackbar.LENGTH_SHORT).show();
+        View MainView = this.getWindow().getDecorView();
+        MainView.setDrawingCacheEnabled(true);
+        MainView.buildDrawingCache();
+        Bitmap MainBitmap = MainView.getDrawingCache();
+        Rect frame = new Rect();
+
+        this.getWindow().getDecorView().findViewById(R.id.ux_fragment);
+        //to remove statusBar from the taken sc
+        int statusBarHeight = frame.top;
+        //using screen size to create bitmap
+        int width = this.getWindowManager().getDefaultDisplay().getWidth();
+        int height = this.getWindowManager().getDefaultDisplay().getHeight();
+
+        ArSceneView arSceneView = arFragment.getArSceneView();
+
+        final Bitmap bitmap = Bitmap.createBitmap(arSceneView.getWidth(), arSceneView.getHeight(), Bitmap.Config.ARGB_8888);
+
+
+        Bitmap OutBitmap = Bitmap.createBitmap(MainBitmap, 0, statusBarHeight, width, height - statusBarHeight);
+
+
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("image/*");
+        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        File file = new File(Environment.getExternalStorageDirectory().toString() + "/DCIM/testScreenShot.jpg");
+
+        final HandlerThread handlerThread = new HandlerThread("PixelCopier");
+        handlerThread.start();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            PixelCopy.request(arSceneView, OutBitmap, (copyResult) -> {
+                if (copyResult == PixelCopy.SUCCESS) {
+
+                    String path = Environment.getExternalStorageDirectory().toString();
+                    OutputStream fOut = null;
+                    //you can also using current time to generate name
+
+                    try {
+                        fOut = new FileOutputStream(file);
+                        OutBitmap.compress(Bitmap.CompressFormat.JPEG, 100, fOut);
+                        fOut.flush();
+                        fOut.close();
+
+                        Toast.makeText(getApplicationContext(),"Photo taken", Toast.LENGTH_SHORT).show();
+
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+
+                } else {
+                    Toast toast = Toast.makeText(this,
+                            "Error" + copyResult, Toast.LENGTH_LONG);
+                    toast.show();
+                }
+                handlerThread.quitSafely();
+            }, new Handler(handlerThread.getLooper()));
+
+
+
+        }
+
+
 
         ApiService apiService = new ApiService(this);
 
@@ -296,6 +362,9 @@ public class ArActivity extends AppCompatActivity {
             @Override
             public void onClick(DialogInterface dialogInterface, int i) {
 
+
+
+
                 String email = editTextEmail.getText().toString();
                 String user = editTextUser.getText().toString();
 
@@ -311,6 +380,17 @@ public class ArActivity extends AppCompatActivity {
                 if(!user.isEmpty() && (!email.isEmpty() && validate(email))){
                     apiService.sendUser(user,email);
 
+
+                    //this line will add the saved picture to gallery
+                    //MediaStore.Images.Media.insertImage(getContentResolver(), file.getAbsolutePath(), file.getName(), file.getName());
+
+                    if(file.exists()){
+                        Uri photoURI = FileProvider.getUriForFile(getApplicationContext(), getApplicationContext().getPackageName() + ".provider", file);
+                        share.putExtra(Intent.EXTRA_TEXT, "#cerealis #coloring #AR");
+                        share.putExtra(Intent.EXTRA_STREAM, photoURI);
+                        startActivity(Intent.createChooser(share, "Share Image"));
+                    }
+
                     //create screenshot
                 }else{
                     Toast.makeText(getApplicationContext(),"Error : please check your info", Toast.LENGTH_SHORT).show();
@@ -319,6 +399,11 @@ public class ArActivity extends AppCompatActivity {
         });
 
         alertDialog.show();
+
+
+
+
+
 
     }
 
@@ -364,10 +449,10 @@ public class ArActivity extends AppCompatActivity {
                     OutputStream fOut = null;
                     //you can also using current time to generate name
 
-                    File file = new File(Environment.getExternalStorageDirectory().toString() + "/DCIM/testScreenShot.png");
+                    File file = new File(Environment.getExternalStorageDirectory().toString() + "/DCIM/testScreenShot.jpg");
                     try {
                         fOut = new FileOutputStream(file);
-                        OutBitmap.compress(Bitmap.CompressFormat.PNG, 100, fOut);
+                        OutBitmap.compress(Bitmap.CompressFormat.JPEG, 100, fOut);
                         fOut.flush();
                         fOut.close();
 
@@ -375,16 +460,16 @@ public class ArActivity extends AppCompatActivity {
                         //MediaStore.Images.Media.insertImage(getContentResolver(), file.getAbsolutePath(), file.getName(), file.getName());
 
 
-                        Intent share = new Intent(Intent.ACTION_SEND);
-                        share.setType("image/*");
 
-
-                        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                        Uri photoURI = FileProvider.getUriForFile(this, this.getApplicationContext().getPackageName() + ".provider", file);
-                        share.putExtra(Intent.EXTRA_TEXT, "#cerealis #coloring #AR");
-                        share.putExtra(Intent.EXTRA_STREAM, photoURI);
-                        startActivity(Intent.createChooser(share, "Share Image"));
-
+                        if(file.exists()){
+                            Intent share = new Intent(Intent.ACTION_SEND);
+                            share.setType("image/*");
+                            share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            Uri photoURI = FileProvider.getUriForFile(this, this.getApplicationContext().getPackageName() + ".provider", file);
+                            share.putExtra(Intent.EXTRA_TEXT, "#cerealis #coloring #AR");
+                            share.putExtra(Intent.EXTRA_STREAM, photoURI);
+                            startActivity(Intent.createChooser(share, "Share Image"));
+                        }
 
                     } catch (FileNotFoundException e) {
                         e.printStackTrace();
@@ -471,8 +556,9 @@ public class ArActivity extends AppCompatActivity {
 
 
 
-        setColorSnake(session,new ArrayList<com.cerealis.ar.ui.Color>());
+        //setMonkeyColor(session,new ArrayList<com.cerealis.ar.ui.Color>());
 
+        //setRhinoNewColor(session,new ArrayList<com.cerealis.ar.ui.Color>());
 
         if(!photoHasBeenTaken){
             Snackbar.make(arFragment.getArSceneView(),"Prend d'abord en photo ton dessin", Snackbar.LENGTH_LONG).show();
@@ -488,10 +574,12 @@ public class ArActivity extends AppCompatActivity {
             ArrayList<com.cerealis.ar.ui.Color> colorsArrayList = getArrayListColors(sendImageToServer.getResult());
 
 
+
             if (hitTestResult.getNode() == null) {
                 Log.d(TAG, "handleOnTouch hitTestResult.getNode() != null");
                 //Toast.makeText(LineViewMainActivity.this, "hitTestResult is not null: ", Toast.LENGTH_SHORT).show();
                 Node hitNode = hitTestResult.getNode();
+
 
 
                 switch (drawing){
@@ -502,7 +590,7 @@ public class ArActivity extends AppCompatActivity {
                         setRhinoColor(session,colorsArrayList);
                         break;
                     case 2:
-                        setColorSnake(session,colorsArrayList);
+                        setMonkeyColor(session,colorsArrayList);
                         break;
                 }
 
@@ -586,6 +674,7 @@ public class ArActivity extends AppCompatActivity {
                 snakeRenderable.setShadowCaster(true);
 
                 //arFragment.getArSceneView().setLightEstimationEnabled(true);
+                System.out.println(snakeRenderable.getSubmeshCount());
 
 
                 addedAnchorNode.setRenderable(snakeRenderable);
@@ -596,25 +685,32 @@ public class ArActivity extends AppCompatActivity {
 
                     switch (i){
                         case 0 :
-                            snakeRenderable.getMaterial(0).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 255)));
+                            com.cerealis.ar.ui.Color colorHeadUP = colors.get(0);
+                            snakeRenderable.getMaterial(0).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(colorHeadUP.b, colorHeadUP.g, colorHeadUP.b)));
                             break;
                         case 1 :
-                            snakeRenderable.getMaterial(1).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 255)));
+                            com.cerealis.ar.ui.Color colorHeadUpPlus = colors.get(0);
+                            snakeRenderable.getMaterial(1).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(colorHeadUpPlus.r, colorHeadUpPlus.g, colorHeadUpPlus.b)));
                             break;
                         case 2 :
-                            snakeRenderable.getMaterial(2).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 255, 0)));
+                            com.cerealis.ar.ui.Color colorHeadBodyDown = colors.get(3);
+                            snakeRenderable.getMaterial(2).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(colorHeadBodyDown.r, colorHeadBodyDown.g, colorHeadBodyDown.b)));
                             break;
                         case 3:
-                            snakeRenderable.getMaterial(3).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 255)));
+                            com.cerealis.ar.ui.Color colorHeadBodyUp = colors.get(2);
+
+                            snakeRenderable.getMaterial(3).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(colorHeadBodyUp.r, colorHeadBodyUp.g, colorHeadBodyUp.b)));
                             break;
                         case 4 :
-                            snakeRenderable.getMaterial(4).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 0)));
+                            snakeRenderable.getMaterial(4).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 0)));//tongue
                             break;
                         case 5:
-                            snakeRenderable.getMaterial(5).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 255, 255)));
+                            snakeRenderable.getMaterial(5).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 0))); //eyes
                             break;
                         case 6:
-                            snakeRenderable.getMaterial(6).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 255, 255)));
+                            com.cerealis.ar.ui.Color colorHeadDown= colors.get(1);
+
+                            snakeRenderable.getMaterial(6).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(colorHeadDown.r, colorHeadDown.g, colorHeadDown.b))); //headDown
                             break;
                     }
 
@@ -635,7 +731,80 @@ public class ArActivity extends AppCompatActivity {
 
     }
 
-    private void setMonkeyColor(ArrayList<Integer> listColors){
+    private void setMonkeyColor(Session session, ArrayList<com.cerealis.ar.ui.Color> listColors){
+        // Place the anchor 0.5m in front of the camera. Make sure we are not at maximum anchor first.
+        Log.d(TAG, "adding Andy in fornt of camera");
+        if (numberOfAnchors < MAX_ANCHORS) {
+            Frame frame = arFragment.getArSceneView().getArFrame();
+            int currentAnchorIndex = numberOfAnchors;
+            try {
+
+                if (frame.getCamera().getTrackingState() != TrackingState.TRACKING) {
+
+                    Toast.makeText(this, "Bouge l'appareil avant toucher l'écran", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
+
+                Anchor newMarkAnchor = session.createAnchor(
+                        frame.getCamera().getPose()
+                                .compose(Pose.makeTranslation(0, 0, -10.00f))
+                                .extractTranslation());
+                AnchorNode addedAnchorNode = new AnchorNode(newMarkAnchor);
+
+                monkeyRenderable.setShadowCaster(true);
+
+                //arFragment.getArSceneView().setLightEstimationEnabled(true);
+
+
+                addedAnchorNode.setRenderable(monkeyRenderable);
+
+
+                System.out.println(monkeyRenderable.getSubmeshCount());
+                for(int i = 0; i < monkeyRenderable.getSubmeshCount(); i++){
+
+
+                    switch (i){
+                        case 0 :
+
+                            monkeyRenderable.getMaterial(0).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 0)));
+                            break;
+                        case 1 :
+                            monkeyRenderable.getMaterial(1).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 0)));
+                            break;
+                        case 2 :
+                            monkeyRenderable.getMaterial(2).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 0)));
+                            break;
+                        case 3:
+                            monkeyRenderable.getMaterial(3).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 0)));
+                            break;
+                        case 4 :
+                            monkeyRenderable.getMaterial(4).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 0)));
+                            break;
+                        case 5:
+                            monkeyRenderable.getMaterial(5).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 0)));
+                            break;
+                        case 6:
+                            monkeyRenderable.getMaterial(6).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 0)));
+                            break;
+                        case 7:
+                            monkeyRenderable.getMaterial(7).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 0)));
+
+                    }
+
+                }
+
+                addAnchorNode(addedAnchorNode);
+                currentSelectedAnchorNode = addedAnchorNode;
+
+
+            } catch (NotTrackingException e) {
+                Log.d(TAG, "Not tracking ");
+
+            }
+        } else {
+            Log.d(TAG, "MAX_ANCHORS exceeded");
+        }
 
     }
 
@@ -654,6 +823,7 @@ public class ArActivity extends AppCompatActivity {
                     return;
                 }
 
+                System.out.println(monkeyRenderable.getSubmeshCount());
 
                 Anchor newMarkAnchor = session.createAnchor(
                         frame.getCamera().getPose()
@@ -683,11 +853,11 @@ public class ArActivity extends AppCompatActivity {
                             break;
                         case 2 :
                             com.cerealis.ar.ui.Color  colorHeadUp = colors.get(0);
-                            rhinoRenderable.getMaterial(2).setFloat3("baseColorTint", new Color((int) colorHeadUp.r, (int) colorHeadUp.g, (int)colorHeadUp.b));
+                            rhinoRenderable.getMaterial(2).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb((int) colorHeadUp.r, (int) colorHeadUp.g, (int)colorHeadUp.b)));
                             break;
                         case 3:
                             com.cerealis.ar.ui.Color  colorHorn = colors.get(2);
-                            rhinoRenderable.getMaterial(3).setFloat3("baseColorTint", new Color((int) colorHorn.r, (int) colorHorn.g, (int)colorHorn.b));
+                            rhinoRenderable.getMaterial(3).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb((int) colorHorn.r, (int) colorHorn.g, (int)colorHorn.b)));
                             break;
                         case 4 :
                             rhinoRenderable.getMaterial(4).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb((int) 0, (int) 0, 0)));
@@ -695,6 +865,83 @@ public class ArActivity extends AppCompatActivity {
                         case 5:
                             com.cerealis.ar.ui.Color  colorBodyUp = colors.get(3);
                             rhinoRenderable.getMaterial(5).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(colorBodyUp.r, colorBodyUp.g, colorBodyUp.b)));
+                            break;
+                    }
+
+                }
+
+                addAnchorNode(addedAnchorNode);
+                currentSelectedAnchorNode = addedAnchorNode;
+
+
+            } catch (NotTrackingException e) {
+                Log.d(TAG, "Not tracking ");
+
+            }
+        } else {
+            Log.d(TAG, "MAX_ANCHORS exceeded");
+        }
+
+    }
+
+
+    private void setRhinoNewColor(Session session, ArrayList<com.cerealis.ar.ui.Color> colors){
+
+        // Place the anchor 0.5m in front of the camera. Make sure we are not at maximum anchor first.
+        Log.d(TAG, "adding Andy in fornt of camera");
+        if (numberOfAnchors < MAX_ANCHORS) {
+            Frame frame = arFragment.getArSceneView().getArFrame();
+            int currentAnchorIndex = numberOfAnchors;
+            try {
+
+                if (frame.getCamera().getTrackingState() != TrackingState.TRACKING) {
+
+                    Toast.makeText(this, "The camera is not tracking", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
+                System.out.println(monkeyRenderable.getSubmeshCount());
+
+                Anchor newMarkAnchor = session.createAnchor(
+                        frame.getCamera().getPose()
+                                .compose(Pose.makeTranslation(0, 0, -10.00f))
+                                .extractTranslation());
+                AnchorNode addedAnchorNode = new AnchorNode(newMarkAnchor);
+
+                rhinoRenderable.setShadowCaster(true);
+
+                //arFragment.getArSceneView().setLightEstimationEnabled(true);
+
+
+                addedAnchorNode.setRenderable(rhinoRenderable);
+
+
+
+                for(int i = 0; i < rhinoRenderable.getSubmeshCount(); i++){
+
+                    switch (i){
+                        case 0 :
+                            //com.cerealis.ar.ui.Color colorBodyDown = colors.get(4);
+                            rhinoRenderable.getMaterial(0).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(0, 0, 0)));
+                            break;
+                        case 1 :
+                            //com.cerealis.ar.ui.Color  colorHeadDown = colors.get(1);
+                            rhinoRenderable.getMaterial(1).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb(255, 0, 0)));
+                            break;
+                        case 2 :
+                            //com.cerealis.ar.ui.Color  colorHeadUp = colors.get(0);
+                            rhinoRenderable.getMaterial(2).setFloat3("baseColorTint", new Color(255, 0, 0));
+                            break;
+                        case 3:
+                            //com.cerealis.ar.ui.Color  colorHorn = colors.get(2);
+                            rhinoRenderable.getMaterial(3).setFloat3("baseColorTint", new Color(255, 0, 0));
+                            break;
+                        case 4 :
+                            rhinoRenderable.getMaterial(4).setFloat3("baseColorTint", new Color(android.graphics.Color.rgb((int) 0, (int) 0, 0)));
+                            break;
+                        case 5:
+                            //com.cerealis.ar.ui.Color  colorBodyUp = colors.get(3);
+                            rhinoRenderable.getMaterial(5).setFloat3("baseColorTint", new Color(0, 0, 0));
                             break;
                     }
 

@@ -115,6 +115,13 @@ public abstract class CameraActivity extends AppCompatActivity
   private Device device = Device.GPU;
   private int numThreads = -1;
   private boolean drawingHaveBeenDetermined = false;
+  private boolean determinationIsOnProgress = false;
+  private long monkeyDetermined = 0;
+  private boolean monkeyDetected = false;
+  private boolean rhinoDetected = false;
+  private boolean snakeDetected = false;
+  private long rhinoDetermined = 0;
+  private long snakeDetermined = 0;
 
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
@@ -563,52 +570,104 @@ public abstract class CameraActivity extends AppCompatActivity
           //result_text.setText("Capture me with your camera ");
         }
 
+        if(!determinationIsOnProgress){
+          Snackbar.make(result_text,"Please fit drawing in front of camera",Snackbar.LENGTH_INDEFINITE).show();
+        }
 
         switch (recognition.getTitle()){
           case "1 singe":
             if(recognition.getConfidence()>0.99f){
-              drawingHaveBeenDetermined = true;
-              Snackbar.make(result_text,"Dessin determiné : singe", Snackbar.LENGTH_LONG).setAction("Cancel", new View.OnClickListener() {
+              //drawingHaveBeenDetermined = true;
+              determinationIsOnProgress = true;
 
-                @Override
-                public void onClick(View view) {
-                  drawingHaveBeenDetermined = false;
-                  readyForNextImage();
+              if(!snakeDetected && !rhinoDetected){
+
+                if(monkeyDetermined==0){
+                  monkeyDetermined = System.currentTimeMillis();
+                }else{
+                  if(System.currentTimeMillis()-monkeyDetermined>3000){
+                    drawingHaveBeenDetermined = true;
+                    //launch activity
+                    startNewActivity(1);
+                  } //wait for
+
                 }
-              }).show();
+
+              }else{ //reset in case of drawing changed
+                snakeDetected=false;
+                rhinoDetected=false;
+                monkeyDetected=true;
+
+                monkeyDetermined = System.currentTimeMillis();
+              }
+            }else{
+              determinationIsOnProgress = true;
             }
 
-            startNewActivity(1);
+
 
             break;
           case "2 rhino":
             if(recognition.getConfidence()>0.99f){
-              drawingHaveBeenDetermined = true;
-              Snackbar.make(result_text,"Dessin determiné : rhinocéros", Snackbar.LENGTH_LONG).setAction("Cancel", new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                  drawingHaveBeenDetermined = false;
-                  readyForNextImage();
+              determinationIsOnProgress = true;
+
+              if(!monkeyDetected && !snakeDetected){
+
+                if(rhinoDetermined==0){
+                  rhinoDetermined = System.currentTimeMillis();
+                }else{
+                  if(System.currentTimeMillis()-rhinoDetermined>3000){
+                    drawingHaveBeenDetermined = true;
+                    startNewActivity(2);
+
+                  } //wait for
+
                 }
-              }).show();
+
+              }else{ //reset in case of drawing changed
+                snakeDetected=false;
+                rhinoDetected=true;
+                monkeyDetected=false;
+
+                rhinoDetermined = System.currentTimeMillis();
+              }
+            }else{
+              determinationIsOnProgress = true;
+
             }
 
-            startNewActivity(2);
+
 
             break;
           case "0 serpent":
             if(recognition.getConfidence()>0.99f){
-              drawingHaveBeenDetermined = true;
-              Snackbar.make(result_text,"Dessin determiné : serpent", Snackbar.LENGTH_LONG).setAction("Cancel", new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                  drawingHaveBeenDetermined = false;
-                  readyForNextImage();
+              determinationIsOnProgress = true;
+
+              if(!rhinoDetected && !monkeyDetected){
+
+                if(snakeDetermined==0){
+                  snakeDetermined = System.currentTimeMillis();
+                }else{
+                  if(System.currentTimeMillis()-snakeDetermined>3000){
+                    drawingHaveBeenDetermined = true;
+                    startNewActivity(0);
+                  } //wait for
+
                 }
-              }).show();
+
+              }else{ //reset in case of drawing changed
+                snakeDetected=true;
+                rhinoDetected=false;
+                monkeyDetected=false;
+
+                snakeDetermined = System.currentTimeMillis();
+              }
+            }else{
+              determinationIsOnProgress = true;
+
             }
 
-            startNewActivity(0);
+
 
             break;
         }
@@ -746,7 +805,7 @@ public abstract class CameraActivity extends AppCompatActivity
 
     Handler handler = new Handler();
 
-    Snackbar.make(result_text,"Please don't move", Snackbar.LENGTH_INDEFINITE).show();
+    //Snackbar.make(result_text,"Please don't move", Snackbar.LENGTH_INDEFINITE).show();
 
     handler.postDelayed(new Runnable() {
       @Override
@@ -754,14 +813,19 @@ public abstract class CameraActivity extends AppCompatActivity
 
         if (getImageSaved()){
             Snackbar.make(result_text,"Image captured", Snackbar.LENGTH_INDEFINITE).show();
+
+          Intent intent = new Intent(CameraActivity.this, ArActivity.class);
+          intent.putExtra("drawing", i);
+          startActivity(intent);
+
+        }else{
+          handler.removeCallbacks(this);
+          startNewActivity(i);
         }
 
-        Intent intent = new Intent(CameraActivity.this, ArActivity.class);
-        intent.putExtra("drawing", i);
-        startActivity(intent);
 
       }
-    },3000);
+    },1000);
 
 
 

@@ -51,7 +51,7 @@
         android:id="@+id/fruit_name"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:text="Place toi sur le dessin"
+        android:text="place yourself above the drawing"
         android:layout_centerHorizontal="true"
         android:gravity="center"
         android:layout_gravity="bottom"
